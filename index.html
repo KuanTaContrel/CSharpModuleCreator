@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>C# 模組自動生成系統</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Marked.js for Markdown parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <!-- PDF.js for parsing PDF files -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        window.pdfjsLib = window['pdfjs-dist/build/pdf'];
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Fira+Code:wght@400;500&display=swap');
+        body { font-family: 'Noto Sans TC', sans-serif; }
+        .font-code { font-family: 'Fira Code', monospace; }
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 3px solid #4f46e5;
+            width: 24px;
+            height: 24px;
+            -webkit-animation: spin 1s linear infinite; /* Safari */
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen pb-12">
+
+    <!-- Header -->
+    <header class="bg-indigo-600 text-white shadow-md py-6 px-4 mb-8">
+        <div class="max-w-5xl mx-auto flex items-center gap-3">
+            <i data-lucide="cpu" class="w-8 h-8"></i>
+            <h1 class="text-2xl font-bold tracking-wide">C# 模組自動生成系統</h1>
+        </div>
+    </header>
+
+    <main class="max-w-5xl mx-auto px-4 space-y-8">
+        
+        <!-- Step 1: Upload Manual -->
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="bg-slate-100/50 px-6 py-4 border-b border-slate-200 flex items-center gap-3">
+                <div class="bg-indigo-100 text-indigo-700 w-8 h-8 rounded-full flex items-center justify-center font-bold">1</div>
+                <h2 class="text-lg font-bold text-slate-800">上傳新模組手冊</h2>
+            </div>
+            <div class="p-6">
+                <p class="text-slate-500 mb-4 text-sm">請上傳 PDF (.pdf)、文字檔 (.txt) 或 Markdown 檔 (.md) 格式的手冊，系統將會為您分析模組的主要功能。</p>
+                <div class="flex items-center gap-4 flex-wrap">
+                    <input type="file" id="step1-file" accept=".txt,.md,.csv,.json,.pdf" class="block w-full max-w-sm text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-colors cursor-pointer" />
+                    <button id="btn-analyze" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm">
+                        <i data-lucide="file-search" class="w-4 h-4"></i>
+                        分析模組手冊
+                    </button>
+                    <div id="step1-loading" class="hidden items-center gap-2 text-indigo-600 text-sm font-medium">
+                        <div class="loader"></div>
+                        <span>Gemini 分析中...</span>
+                    </div>
+                </div>
+                
+                <!-- Step 1 Result -->
+                <div id="step1-result-container" class="mt-6 hidden">
+                    <h3 class="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+                        <i data-lucide="list-checks" class="w-4 h-4 text-emerald-600"></i>手冊分析結果
+                    </h3>
+                    <div id="step1-result" class="bg-slate-50 border border-slate-200 rounded-lg p-5 prose prose-sm max-w-none text-slate-700">
+                        <!-- Markdown content will be injected here -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Step 2: Upload Template Code -->
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="bg-slate-100/50 px-6 py-4 border-b border-slate-200 flex items-center gap-3">
+                <div class="bg-indigo-100 text-indigo-700 w-8 h-8 rounded-full flex items-center justify-center font-bold">2</div>
+                <h2 class="text-lg font-bold text-slate-800">上傳現有類似 C# 模組</h2>
+            </div>
+            <div class="p-6">
+                <p class="text-slate-500 mb-4 text-sm">請上傳您欲參考架構與風格的現有 C# 原始碼檔案 (.cs)。</p>
+                <div class="flex items-center gap-4">
+                    <input type="file" id="step2-file" accept=".cs" class="block w-full max-w-sm text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 transition-colors cursor-pointer" />
+                </div>
+                <div id="step2-status" class="mt-4 hidden items-center gap-2 text-emerald-600 text-sm font-medium bg-emerald-50 p-3 rounded-lg border border-emerald-100">
+                    <i data-lucide="check-circle" class="w-5 h-5"></i>
+                    <span id="step2-filename">已成功載入範本模組：</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Step 3: Describe & Generate -->
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="bg-slate-100/50 px-6 py-4 border-b border-slate-200 flex items-center gap-3">
+                <div class="bg-indigo-100 text-indigo-700 w-8 h-8 rounded-full flex items-center justify-center font-bold">3</div>
+                <h2 class="text-lg font-bold text-slate-800">描述新模組功能</h2>
+            </div>
+            <div class="p-6 space-y-5">
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-2">新模組名稱</label>
+                    <input type="text" id="module-name" placeholder="例如：PaymentGatewayModule, UserAuthManager..." class="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-shadow">
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-2">預計使用的方法函式說明</label>
+                    <textarea id="module-desc" rows="4" placeholder="請描述這個模組預計包含哪些 Method？例如：&#10;1. Initialize() - 初始化設定&#10;2. ProcessData(string input) - 處理資料核心邏輯" class="w-full border border-slate-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-shadow resize-y"></textarea>
+                </div>
+                
+                <div class="pt-2 flex items-center gap-4">
+                    <button id="btn-generate" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm w-full sm:w-auto justify-center">
+                        <i data-lucide="sparkles" class="w-5 h-5"></i>
+                        生成 C# 模組
+                    </button>
+                    <div id="step3-loading" class="hidden items-center gap-2 text-indigo-600 text-sm font-medium">
+                        <div class="loader"></div>
+                        <span>Gemini 正在撰寫程式碼，請稍候...</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Result Editor -->
+        <section id="editor-section" class="hidden bg-[#1e1e1e] rounded-2xl shadow-xl border border-slate-800 overflow-hidden flex flex-col">
+            <div class="bg-[#2d2d2d] px-4 py-3 flex items-center justify-between border-b border-slate-700">
+                <div class="flex items-center gap-2 text-slate-300">
+                    <i data-lucide="code-2" class="w-5 h-5"></i>
+                    <span id="display-filename" class="font-code text-sm">GeneratedModule.cs</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="btn-copy" class="text-slate-300 hover:text-white hover:bg-slate-600 p-2 rounded transition-colors flex items-center gap-1 text-sm" title="複製程式碼">
+                        <i data-lucide="copy" class="w-4 h-4"></i>
+                        <span>複製</span>
+                    </button>
+                    <button id="btn-download" class="text-slate-300 hover:text-white hover:bg-slate-600 p-2 rounded transition-colors flex items-center gap-1 text-sm bg-indigo-600/30 border border-indigo-500/30" title="下載檔案">
+                        <i data-lucide="download" class="w-4 h-4"></i>
+                        <span>下載 .cs</span>
+                    </button>
+                </div>
+            </div>
+            <div class="p-4 flex-1">
+                <textarea id="code-editor" class="w-full h-[500px] bg-transparent text-[#d4d4d4] font-code text-sm outline-none resize-y leading-relaxed" spellcheck="false"></textarea>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-3"></div>
+
+    <script>
+        // System variables
+        // ⚠️ 在此預覽區測試請【保持空白】（系統會自動代理）。下載至您的電腦執行時，再填入您的 API Key。
+        const apiKey = "AQ.Ab8RN6KF1zuO6DVbeLb4UFd6MiC9EWwfDxNp3i1qVczBIP2QUA"; 
+        let manualSummary = "";
+        let templateCode = "";
+
+        // Initialize Icons
+        lucide.createIcons();
+
+        // Utility: Show Toast Messages
+        function showToast(message, type = 'error') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            let bgClass = type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-800';
+            let icon = type === 'success' ? '<i data-lucide="check-circle" class="w-5 h-5"></i>' : '<i data-lucide="alert-circle" class="w-5 h-5"></i>';
+            
+            toast.className = `flex items-center gap-3 p-4 rounded-xl border shadow-lg transition-all duration-300 transform translate-x-10 opacity-0 ${bgClass}`;
+            toast.innerHTML = `${icon}<span class="font-medium text-sm">${message}</span>`;
+            
+            container.appendChild(toast);
+            lucide.createIcons({ root: toast });
+
+            // Animate in
+            setTimeout(() => {
+                toast.classList.remove('translate-x-10', 'opacity-0');
+            }, 10);
+
+            // Animate out and remove
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-x-10');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        // Utility: Gemini API Call with Exponential Backoff
+        async function fetchGemini(prompt) {
+            const cleanKey = apiKey.trim();
+            // 自動判斷：若有填入金鑰，切換為公開模型；若保持空白，則使用預覽區專屬模型
+            const modelName = cleanKey ? "gemini-1.5-flash-latest" : "gemini-2.5-flash-preview-09-2025";
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${cleanKey}`;
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }]
+            };
+
+            const maxRetries = 5;
+            const delays = [1000, 2000, 4000, 8000, 16000];
+
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`伺服器回應錯誤 (狀態碼: ${response.status})`);
+                    }
+
+                    const result = await response.json();
+                    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                    
+                    if (!text) throw new Error("API 回傳格式異常，找不到生成內容");
+                    return text;
+
+                } catch (error) {
+                    if (i === maxRetries - 1) {
+                        throw new Error("與 AI 服務連線失敗，已達最大重試次數：" + error.message);
+                    }
+                    await new Promise(resolve => setTimeout(resolve, delays[i]));
+                }
+            }
+        }
+
+        // ----------------------------------------------------
+        // Step 1: Upload and Analyze Manual
+        // ----------------------------------------------------
+        
+        // 解析 PDF 文字的輔助函式
+        async function extractTextFromPDF(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            let fullText = "";
+            
+            // 為了避免超大 PDF 導致 API 記憶體不足，這裡限制最多讀取前 30 頁
+            const maxPages = Math.min(pdf.numPages, 30); 
+            
+            for (let i = 1; i <= maxPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map(item => item.str).join(" ");
+                fullText += pageText + "\n";
+            }
+            
+            if (pdf.numPages > 30) {
+                fullText += "\n\n[系統提示：為避免超過 AI 字數限制，手冊僅截取前 30 頁進行分析。]";
+            }
+            
+            return fullText;
+        }
+
+        document.getElementById('btn-analyze').addEventListener('click', async () => {
+            const fileInput = document.getElementById('step1-file');
+            if (fileInput.files.length === 0) {
+                showToast('請先選擇要上傳的手冊檔案！', 'error');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const loadingEl = document.getElementById('step1-loading');
+            const resultContainer = document.getElementById('step1-result-container');
+            const btn = document.getElementById('btn-analyze');
+
+            loadingEl.classList.replace('hidden', 'flex');
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+            resultContainer.classList.add('hidden');
+
+            try {
+                let content = "";
+                
+                // 判斷是否為 PDF 檔案
+                if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+                    content = await extractTextFromPDF(file);
+                } else {
+                    // 其他純文字檔 (.txt, .md 等) 的處理方式
+                    content = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => resolve(e.target.result);
+                        reader.onerror = () => reject(new Error("讀取純文字檔案時發生錯誤"));
+                        reader.readAsText(file);
+                    });
+                }
+
+                if (!content || !content.trim()) {
+                    throw new Error("無法從檔案中讀取到任何內容，請確認檔案是否為空！");
+                }
+
+                const prompt = `你是一個專業的軟體系統分析師。請仔細閱讀以下模組手冊內容，並用繁體中文總結出此模組的核心功能與業務邏輯。
+請務必使用 Markdown 格式輸出，並建立清晰的階層感，讓閱讀更容易。建議輸出結構如下：
+
+### 📑 模組概述
+(簡短總結模組的主要用途與目標)
+
+### 🎯 核心功能
+(使用帶有粗體的條列式項目說明各項主要功能)
+
+### ⚙️ 業務邏輯與細節
+(列出重要的流程、資料處理邏輯或注意事項)
+
+以下是手冊內容：
+${content}`;
+                manualSummary = await fetchGemini(prompt);
+                
+                // Display result using Marked.js
+                document.getElementById('step1-result').innerHTML = marked.parse(manualSummary);
+                resultContainer.classList.remove('hidden');
+                showToast('手冊分析完成！', 'success');
+
+            } catch (err) {
+                console.error(err);
+                showToast(err.message, 'error');
+            } finally {
+                loadingEl.classList.replace('flex', 'hidden');
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        });
+
+        // ----------------------------------------------------
+        // Step 2: Upload Template Module
+        // ----------------------------------------------------
+        document.getElementById('step2-file').addEventListener('change', (e) => {
+            if (e.target.files.length === 0) return;
+            
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                templateCode = e.target.result;
+                const statusEl = document.getElementById('step2-status');
+                document.getElementById('step2-filename').textContent = `已成功載入範本模組：${file.name}`;
+                statusEl.classList.replace('hidden', 'flex');
+                showToast('範本程式碼已載入記憶體！', 'success');
+            };
+
+            reader.onerror = () => showToast('讀取程式碼檔案時發生錯誤。', 'error');
+            reader.readAsText(file);
+        });
+
+        // ----------------------------------------------------
+        // Step 3: Generate C# Module
+        // ----------------------------------------------------
+        document.getElementById('btn-generate').addEventListener('click', async () => {
+            const moduleName = document.getElementById('module-name').value.trim();
+            const moduleDesc = document.getElementById('module-desc').value.trim();
+
+            if (!manualSummary) {
+                showToast('請先完成【步驟一】的手冊分析！', 'error');
+                return;
+            }
+            if (!templateCode) {
+                showToast('請先完成【步驟二】上傳現有模組範本！', 'error');
+                return;
+            }
+            if (!moduleName || !moduleDesc) {
+                showToast('請在【步驟三】輸入新模組名稱與方法說明！', 'error');
+                return;
+            }
+
+            const loadingEl = document.getElementById('step3-loading');
+            const btn = document.getElementById('btn-generate');
+            const editorSection = document.getElementById('editor-section');
+
+            loadingEl.classList.replace('hidden', 'flex');
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+            
+            try {
+                const prompt = `
+你是一位精通 C# 的資深軟體工程師。請根據以下資訊，生成完整的 C# 模組程式碼。
+
+【輸入資訊】
+1. 模組手冊分析結果（新模組的核心功能與目的）：
+${manualSummary}
+
+2. 參考的現有模組架構（請務必模仿此程式碼的 Namespace、類別設計結構、命名慣例、註解風格）：
+\`\`\`csharp
+${templateCode}
+\`\`\`
+
+3. 新模組名稱：
+${moduleName}
+
+4. 預計使用的方法函式說明：
+${moduleDesc}
+
+【嚴格輸出要求】
+1. 請**只**輸出 C# 程式碼，絕對不要包含任何 Markdown 標籤 (例如 \`\`\`csharp 或 \`\`\`)。
+2. 不要加上任何歡迎詞、結語或其他解釋性文字。
+3. 確保生成的程式碼邏輯完整、語法正確，並包含適當的 using 區塊與 XML 註解。
+`;
+                let generatedCode = await fetchGemini(prompt);
+                
+                // Cleanup in case AI still outputs markdown block
+                generatedCode = generatedCode.replace(/^```(csharp|cs)?\n/im, '').replace(/\n```$/im, '');
+
+                document.getElementById('code-editor').value = generatedCode;
+                document.getElementById('display-filename').textContent = `${moduleName}.cs`;
+                
+                editorSection.classList.remove('hidden');
+                
+                // Scroll to editor
+                editorSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                showToast('模組程式碼生成成功！', 'success');
+
+            } catch (err) {
+                showToast(err.message, 'error');
+            } finally {
+                loadingEl.classList.replace('flex', 'hidden');
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        });
+
+        // ----------------------------------------------------
+        // Editor Toolbar Actions
+        // ----------------------------------------------------
+        
+        // Copy functionality
+        document.getElementById('btn-copy').addEventListener('click', () => {
+            const editor = document.getElementById('code-editor');
+            editor.select();
+            document.execCommand('copy');
+            // deselect
+            window.getSelection().removeAllRanges();
+            showToast('程式碼已複製到剪貼簿！', 'success');
+        });
+
+        // Download functionality
+        document.getElementById('btn-download').addEventListener('click', () => {
+            const code = document.getElementById('code-editor').value;
+            if (!code) {
+                showToast('沒有可下載的程式碼！', 'error');
+                return;
+            }
+            
+            const moduleName = document.getElementById('module-name').value.trim() || 'NewModule';
+            const filename = `${moduleName}.cs`;
+            
+            const blob = new Blob([code], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showToast(`檔案 ${filename} 已開始下載！`, 'success');
+        });
+
+    </script>
+</body>
+</html>
