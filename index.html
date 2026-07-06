@@ -40,15 +40,32 @@
 <body class="bg-slate-50 text-slate-800 min-h-screen pb-12">
 
     <!-- Header -->
-    <header class="bg-indigo-600 text-white shadow-md py-6 px-4 mb-8">
-        <div class="max-w-5xl mx-auto flex items-center gap-3">
-            <i data-lucide="cpu" class="w-8 h-8"></i>
-            <h1 class="text-2xl font-bold tracking-wide">C# 模組自動生成系統</h1>
+    <header class="bg-indigo-600 text-white shadow-md py-6 px-4 mb-6">
+        <div class="max-w-5xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <i data-lucide="cpu" class="w-8 h-8"></i>
+                <h1 class="text-2xl font-bold tracking-wide">C# 模組自動生成系統</h1>
+            </div>
         </div>
     </header>
 
-    <main class="max-w-5xl mx-auto px-4 space-y-8">
+    <main class="max-w-5xl mx-auto px-4 space-y-6">
         
+        <!-- Step 0: API Key Configuration -->
+        <section class="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+            <div class="flex items-center gap-2 text-amber-800">
+                <i data-lucide="key" class="w-5 h-5"></i>
+                <div>
+                    <h2 class="text-sm font-bold">API 金鑰設定</h2>
+                    <p class="text-xs text-amber-700/80">您的金鑰僅會儲存於本機瀏覽器中，不會上傳至任何伺服器。</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 w-full sm:w-auto flex-1 max-w-md">
+                <input type="password" id="api-key-input" placeholder="輸入 Gemini API Key (AIzaSy...)" class="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none">
+                <button id="btn-save-key" class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap">儲存</button>
+            </div>
+        </section>
+
         <!-- Step 1: Upload Manual -->
         <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div class="bg-slate-100/50 px-6 py-4 border-b border-slate-200 flex items-center gap-3">
@@ -158,13 +175,32 @@
 
     <script>
         // System variables
-        // ⚠️ 在此預覽區測試請【保持空白】（系統會自動代理）。下載至您的電腦執行時，再填入您的 API Key。
-        const apiKey = "AIzaSyCZGA6O_Cj0DNv3wS5sCaprNNtPMbRmFE0"; 
+        // 程式碼中不再保留寫死的 API Key，確保 GitHub 安全掃描不會報錯。
         let manualSummary = "";
         let templateCode = "";
 
         // Initialize Icons
         lucide.createIcons();
+
+        // ----------------------------------------------------
+        // API Key Management (Local Storage)
+        // ----------------------------------------------------
+        const keyInput = document.getElementById('api-key-input');
+        const savedKey = localStorage.getItem('gemini_api_key');
+        if (savedKey) {
+            keyInput.value = savedKey; // 如果之前存過，自動帶入
+        }
+
+        document.getElementById('btn-save-key').addEventListener('click', () => {
+            const key = keyInput.value.trim();
+            if (key) {
+                localStorage.setItem('gemini_api_key', key);
+                showToast('API Key 已儲存至瀏覽器本地端！', 'success');
+            } else {
+                localStorage.removeItem('gemini_api_key');
+                showToast('API Key 已清除！', 'success');
+            }
+        });
 
         // Utility: Show Toast Messages
         function showToast(message, type = 'error') {
@@ -194,9 +230,18 @@
 
         // Utility: Gemini API Call with Exponential Backoff
         async function fetchGemini(prompt) {
-            const cleanKey = apiKey.trim();
-            // 自動判斷：若有填入金鑰，切換為穩定公開模型 gemini-1.5-flash；若保持空白，則使用預覽區專屬模型
-            const modelName = cleanKey ? "gemini-1.5-flash" : "gemini-2.5-flash-preview-09-2025";
+            // 從 LocalStorage 抓取金鑰，如果沒有則檢查目前的輸入框
+            const cleanKey = localStorage.getItem('gemini_api_key')?.trim() || keyInput.value.trim();
+            
+            // 如果是這個對話窗預覽區，且沒有金鑰，則允許繼續 (系統會代理)
+            const isPreviewEnv = window.location.hostname.includes('googleusercontent.com') || window.location.hostname === '';
+            
+            if (!cleanKey && !isPreviewEnv) {
+                throw new Error("請先在畫面上方輸入您的 API Key 並點擊儲存！");
+            }
+
+            // 自動判斷：改用目前 Google 全面開放且最穩定的 gemini-2.0-flash 模型
+            const modelName = cleanKey ? "gemini-2.0-flash" : "gemini-2.5-flash-preview-09-2025";
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${cleanKey}`;
             const payload = {
                 contents: [{ parts: [{ text: prompt }] }]
@@ -225,7 +270,7 @@
 
                 } catch (error) {
                     if (i === maxRetries - 1) {
-                        throw new Error("與 AI 服務連線失敗，已達最大重試次數：" + error.message);
+                        throw new Error("與 AI 服務連線失敗：" + error.message);
                     }
                     await new Promise(resolve => setTimeout(resolve, delays[i]));
                 }
@@ -242,7 +287,6 @@
             const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
             let fullText = "";
             
-            // 為了避免超大 PDF 導致 API 記憶體不足，這裡限制最多讀取前 30 頁
             const maxPages = Math.min(pdf.numPages, 30); 
             
             for (let i = 1; i <= maxPages; i++) {
@@ -279,11 +323,9 @@
             try {
                 let content = "";
                 
-                // 判斷是否為 PDF 檔案
                 if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
                     content = await extractTextFromPDF(file);
                 } else {
-                    // 其他純文字檔 (.txt, .md 等) 的處理方式
                     content = await new Promise((resolve, reject) => {
                         const reader = new FileReader();
                         reader.onload = (e) => resolve(e.target.result);
@@ -312,7 +354,6 @@
 ${content}`;
                 manualSummary = await fetchGemini(prompt);
                 
-                // Display result using Marked.js
                 document.getElementById('step1-result').innerHTML = marked.parse(manualSummary);
                 resultContainer.classList.remove('hidden');
                 showToast('手冊分析完成！', 'success');
@@ -402,7 +443,6 @@ ${moduleDesc}
 `;
                 let generatedCode = await fetchGemini(prompt);
                 
-                // Cleanup in case AI still outputs markdown block
                 generatedCode = generatedCode.replace(/^```(csharp|cs)?\n/im, '').replace(/\n```$/im, '');
 
                 document.getElementById('code-editor').value = generatedCode;
@@ -410,7 +450,6 @@ ${moduleDesc}
                 
                 editorSection.classList.remove('hidden');
                 
-                // Scroll to editor
                 editorSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 showToast('模組程式碼生成成功！', 'success');
 
@@ -427,17 +466,14 @@ ${moduleDesc}
         // Editor Toolbar Actions
         // ----------------------------------------------------
         
-        // Copy functionality
         document.getElementById('btn-copy').addEventListener('click', () => {
             const editor = document.getElementById('code-editor');
             editor.select();
             document.execCommand('copy');
-            // deselect
             window.getSelection().removeAllRanges();
             showToast('程式碼已複製到剪貼簿！', 'success');
         });
 
-        // Download functionality
         document.getElementById('btn-download').addEventListener('click', () => {
             const code = document.getElementById('code-editor').value;
             if (!code) {
