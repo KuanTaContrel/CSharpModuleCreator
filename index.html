@@ -196,7 +196,7 @@
         async function fetchGemini(prompt) {
             const cleanKey = apiKey.trim();
             // 自動判斷：若有填入金鑰，切換為公開模型；若保持空白，則使用預覽區專屬模型
-            const modelName = cleanKey ? "gemini-1.5-flash-latest" : "gemini-2.5-flash-preview-09-2025";
+            const modelName = cleanKey ? "gemini-2.5-flash" : "gemini-2.5-flash-preview-09-2025";
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${cleanKey}`;
             const payload = {
                 contents: [{ parts: [{ text: prompt }] }]
